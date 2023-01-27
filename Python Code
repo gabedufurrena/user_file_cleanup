@@ -1,0 +1,47 @@
+import pandas as pd
+from google.colab import files, data_table
+data_table.enable_dataframe_formatter()
+
+uploaded = files.upload()
+
+file = list(uploaded)[0]
+df = pd.DataFrame(data=pd.read_excel(file))
+
+for i in range(len(df.columns) - 37):
+  df.iat[1, i+37] = df.columns[i+37] + " " + df.iloc[0][i+37]
+
+df = df.drop(df.index[0])
+header = df.iloc[0]
+df = df[1:]
+df = df.rename(columns = header)
+
+com_sup_list = df.iloc[0]["Commercial Supporter"].split()
+
+test_users = df[(df["Email Address"].str.contains("haymarket", case = False))
+              | (df["Organization/Institution"].str.contains("Haymarket", case = False))]
+
+for i in range(len(com_sup_list)):
+  test_users = test_users.append(df[df["Email Address"].str.contains(com_sup_list[i].lower(), case = False)])
+#  test_users = test_users.append(df[df["Organization/Institution"].str.contains(com_sup_list[i], case = False)]) #This isn't working yet, due to NaN values in Org column
+
+duplicates = df[df.duplicated(['Subscriber Id'])]
+df = df.drop_duplicates(subset=['Subscriber Id'])
+
+iadf = df[(df["Profession"].isin(["Physician", "Nurse Practitioner", "Physician Assistant", "Pharmacist"])) 
+        & (df["Primary specialty"].isin(["Infectious Disease", "Internal Medicine", "Family Medicine / General Practice", "Geriatric Medicine"]))] #Define these from a file or user inputs
+
+noniadf = pd.concat([df,iadf,iadf]).drop_duplicates(keep=False)
+
+allprof = df['Profession'].value_counts(dropna=False).rename_axis("Profession").reset_index(name='All')
+iaprof = iadf['Profession'].value_counts(dropna=False).rename_axis("Profession").reset_index(name='IA')
+noniaprof = noniadf['Profession'].value_counts(dropna=False).rename_axis("Profession").reset_index(name='nonIA')
+
+prof_counts = allprof.merge(iaprof, on='Profession', how='left').merge(noniaprof, on='Profession', how='left')
+
+allspec = df['Primary specialty'].value_counts(dropna=False).rename_axis("Primary specialty").reset_index(name='All')
+iaspec = iadf['Primary specialty'].value_counts(dropna=False).rename_axis("Primary specialty").reset_index(name='IA')
+noniaspec = noniadf['Primary specialty'].value_counts(dropna=False).rename_axis("Primary specialty").reset_index(name='nonIA')
+
+spec_counts = allspec.merge(iaspec, on='Primary specialty', how='left').merge(noniaspec, on='Primary specialty', how='left')
+
+spec_counts
